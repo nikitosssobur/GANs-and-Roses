@@ -63,6 +63,10 @@ class GeneratorLoss(nn.Module):
 
 
 class GANTraining:
+    '''
+    GAN training class contains methods for training models, set device, transfer the model to the chosen device
+    setting train dataloader and etc.
+    '''
     def __init__(self, dis_model, gen_model, dis_loss_func = None, gen_loss_func = None, dis_opt = None, gen_opt = None):
         self.dis_model = dis_model
         self.gen_model = gen_model
@@ -103,7 +107,7 @@ class GANTraining:
                 dis_loss = self.dis_loss_func(dis_real_preds_batch, dis_fake_preds_batch)
                 self.train_loss_history['train_dis_loss'].append(dis_loss.item())
                 dis_loss.backward()
-                #torch.nn.utils.clip_grad_norm_(self.dis_model.parameters(), max_norm = 2.0)
+                torch.nn.utils.clip_grad_norm_(self.dis_model.parameters(), max_norm = 2.0)
                 self.dis_opt.step()
 
 
@@ -113,7 +117,7 @@ class GANTraining:
             print(f'Epoch: {epoch + 1}/{epoch_num}, Generator Loss: {gen_loss.item()}, Discriminator Loss: {dis_loss.item()}')
             self.train_loss_history['train_gen_loss'].append(gen_loss.item())
             gen_loss.backward()
-            #torch.nn.utils.clip_grad_norm_(self.gen_model.parameters(), max_norm = 2.0)
+            torch.nn.utils.clip_grad_norm_(self.gen_model.parameters(), max_norm = 2.0)
             self.gen_opt.step()
             iter_data['epochs'].append(epoch)
 
@@ -142,6 +146,7 @@ print(loss, loss.shape, loss.mean())
 
 if __name__ == "__main__":
     batch_size = 32
+    dir_path = "D:\\Github repos\\GANs-and-Roses\\Generated images\\GAN3d Generated images"
     dataprocess = DataProcessing("D:\\Github repos\\GANs-and-Roses\\Datasets\\3DShapeNets\\volumetric_data")
     gan3d_train_dataset = GAN3dDataset(dataprocess, "airplane")
     gan3d_train_dataloader = DataLoader(dataset = gan3d_train_dataset, batch_size = batch_size, shuffle = True)
@@ -154,7 +159,7 @@ if __name__ == "__main__":
     gen_loss = GeneratorLoss()
 
     dis_opt = torch.optim.Adam(dis_model.parameters(), lr = 0.00001) 
-    gen_opt = torch.optim.Adam(gen_model.parameters(), lr = 0.00001, betas=(0.5, 0.999))
+    gen_opt = torch.optim.Adam(gen_model.parameters(), lr = 0.000025, betas=(0.5, 0.999))
 
     
     training = GANTraining(dis_model = dis_model, gen_model = gen_model,
@@ -165,3 +170,9 @@ if __name__ == "__main__":
     training.set_train_dataloader(gan3d_train_dataloader)
     training.train(epoch_num = 80, batch_size = batch_size, noise_vector_dim = (200, 1, 1, 1))
     
+    #Testing generating ability
+    for i in range(1):
+        noise_vector = generate_noise_vector((200, 1, 1, 1)).to(device = device)
+        res_image = gen_model(noise_vector)
+        voxels = dataprocess.tensor_to_voxels_image(res_image)
+        dataprocess.save_images(voxels, dir_path = dir_path)

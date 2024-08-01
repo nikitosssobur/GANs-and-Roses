@@ -42,7 +42,8 @@ class DataProcessing:
         self.folder_names = self.get_folders_names()
         self.folder_pathes = self.get_folders_pathes()
         self.images_pathes_dict = self.get_pathes_dict()
-        
+        self.figures_counter = 1
+
 
     def get_folders_names(self):
         return os.listdir(self.general_volume_data_path)
@@ -77,6 +78,34 @@ class DataProcessing:
         voxels = np.pad(voxels['instance'], (1, 1), 'constant', constant_values = (0, 0))
         voxels = nd.zoom(voxels, (2, 2, 2), mode = 'constant', order = 0)
         return voxels
+
+
+    def tensor_to_voxels_image(self, images):
+        #voxels = images.cpu()
+        voxels = images.cpu().detach().numpy()
+        return voxels
+        
+
+    def save_single_image(self, voxels, dir_path):
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+        ax.set_aspect('equal')
+        ax.voxels(voxels, facecolors = "red", edgecolor = "red")
+        save_path = dir_path + f"\\figure_{self.figures_counter}.png" 
+        plt.savefig(save_path)
+        self.figures_counter += 1
+        plt.close(fig)
+
+
+    def save_images(self, voxels, dir_path):
+        if len(voxels.shape) == 5 and voxels.shape[0] == 1:
+            self.save_single_image(voxels[0][0], dir_path)
+        
+        if len(voxels) == 5 and voxels.shape[0] > 1:
+            for single_img_voxels in range(voxels.shape[0]):
+                self.save_single_image(single_img_voxels[0], dir_path)
+        
+
 
 
 
