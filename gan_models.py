@@ -140,21 +140,83 @@ class AgeCGANEncoder(nn.Module):
         return x
     
 
-'''
+
 class AgeCGANGenerator(nn.Module):
     def __init__(self):
         super(AgeCGANGenerator, self).__init__()
-    
+        '''
+        Input vector size: 100, conditional variable size: 6    
+        '''
+        self.noize_vec_dim, self.cond_var_dim = 100, 6 
+        self.linear1 = nn.Linear(in_features = self.noize_vec_dim + self.cond_var_dim, out_features = 2048)
+        self.leaky_relu = nn.LeakyReLU(negative_slope = 0.2)
+        self.dropout = nn.Dropout(0.2)
+        self.linear2 = nn.Linear(in_features = 2048, out_features = 256 * 8 * 8)
+        self.batchnorm1 = nn.BatchNorm2d(num_features = 256 * 8 * 8)
+        self.reshape = torch.reshape            #(8, 8, 256)
+        self.upsample = nn.Upsample((2, 2))
+        self.kernel_size = 5
+        self.padding = 'same'
+        self.conv1 = nn.Conv2d(in_channels = 256, out_channels = 128, 
+                              kernel_size = self.kernel_size, padding = self.padding)
+        self.conv2 = nn.Conv2d(in_channels = 128, out_channels = 64, 
+                              kernel_size = self.kernel_size, padding = self.padding)
+        self.conv3 = nn.Conv2d(in_channels = 64, out_channels = 3, 
+                              kernel_size = self.kernel_size, padding = self.padding)
+        self.batchnorm2 = nn.BatchNorm2d(num_features = 128, momentum = 0.8)
+        self.batchnorm3 = nn.BatchNorm2d(num_features = 64, momentum = 0.8)
+        self.tanh = nn.Tanh()
 
-    def forward(self, x):
-'''
+
+    def forward(self, noize_vector, conditional_variable_vector):
+        x = torch.cat(noize_vector, conditional_variable_vector)
+        x = self.dropout(self.leaky_relu(self.linear1(x)))
+        x = self.dropout(self.leaky_relu(self.batchnorm1(self.linear2(x))))
+        
+        x = self.reshape(x, (256, 8, 8))
+        x = self.leaky_relu(self.batchnorm2(self.conv1(self.upsample(x))))
+        x = self.leaky_relu(self.batchnorm3(self.conv2(self.upsample(x))))
+        x = self.tanh(self.conv3(self.upsample(x)))
+        return x
 
 
-'''
 class AgeCGANDiscriminator(nn.Module):
     def __init__(self):
         super(AgeCGANDiscriminator, self).__init__()
+        '''
+        Input image shape: (3, 64, 64), conditional vector shape: (6,)
+        '''
+        self.leaky_relu = nn.LeakyReLU(0.2)
+        self.conv1 = nn.Conv2d(in_channels = 3, out_channels = 64, kernel_size = 3, stride = 2, padding = 1)  #(64, 32, 32)
+        self.conv2 = nn.Conv2d(in_channels = 70, out_channels = 128, kernel_size = 3, stride = 2, padding = 1) #(128, 16, 16)
+        self.conv3 = nn.Conv2d(in_channels = 128, out_channels = 256, kernel_size = 3, stride = 2, padding = 1) #(256, 8, 8)
+        self.conv4 = nn.Conv2d(in_channels = 256, out_channels = 512, kernel_size = 3, stride = 2, padding = 1) #(512, 4, 4)
+
+        self.batchnorm1 = nn.BatchNorm2d(num_features = 128)
+        self.batchnorm2 = nn.BatchNorm2d(num_features = 256)
+        self.batchnorm3 = nn.BatchNorm2d(num_features = 512)
+
+        self.flatten = nn.Flatten()
+
+        self.linear = nn.Linear(in_features = 512 * 4 * 4, out_features = 1)
+        self.sigmoid = nn.Sigmoid()
 
 
-    def forward(self, x):
-'''
+    def expand_cond_vector(self, x):
+        x = x.unsqueeze(1)
+        x = x.unsqueeze(2)
+        x = x.expand(-1, 32, 32)
+        return x
+
+
+    def forward(self, img, cond_vector):
+        reshaped_cond_vector = self.expand_cond_vector(cond_vector)
+        x = self.leaky_relu(self.conv1(img))
+        x = torch.cat(x, reshaped_cond_vector) 
+        x = self.leaky_relu(self.batchnorm1(self.conv2(x)))
+        x = self.leaky_relu(self.batchnorm2(self.conv3(x)))
+        x = self.leaky_relu(self.batchnorm3(self.conv4(x)))
+        x = self.flatten(x)
+        x = self.sigmoid(self.linear(x))
+        return x
+    
